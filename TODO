@@ -1,0 +1,10 @@
+- [training] setup FP16 training using apex
+- [training] review loss function
+- [training] setup truncated weight initializer (std_dev = 0.09)
+- [preprocess] image normalization needed?
+- [preprocess] random scale augmentation needed? (0.5 to 2)
+- [cleanup] restructure code, trainer class
+- [cleanup] tranformation pipeline using partial functions
+- [future] setup model for inference mode
+- [future] pretrain feature extractor on imagenet, ms-coco
+- [future] evaluate plateau learning rate
