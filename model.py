@@ -271,7 +271,7 @@ if __name__ == '__main__':
         if next(model.parameters()).is_cuda:
             x = x.cuda()
         with torch.no_grad():
-            y = model.forward()
+            y = model.forward(x)
         assert y.shape == out_shape, 'Output size mismatch!'
 
     def fps(model, in_shape):
@@ -285,14 +285,14 @@ if __name__ == '__main__':
         return in_shape[0] * 100 / duration
 
     deeplab = DeepLab(Xception(output_stride=16), num_classes=20)
-    test_out_shapes(deeplab, (1, 3, 1280, 720), (1, 1, 1280, 720))
-    test_out_shapes(deeplab, (1, 3, 640, 360), (1, 1, 640, 360))
+    test_out_shapes(deeplab, (1, 3, 1280, 720), (1, 20, 1280, 720))
+    test_out_shapes(deeplab, (1, 3, 640, 360), (1, 20, 640, 360))
 
     deeplab = DeepLab(Xception(output_stride=8), num_classes=20)
-    test_out_shapes(deeplab, (1, 3, 1280, 720), (1, 1, 1280, 720))
-    test_out_shapes(deeplab, (1, 3, 640, 360), (1, 1, 640, 360))
+    test_out_shapes(deeplab, (1, 3, 1280, 720), (1, 20, 1280, 720))
+    test_out_shapes(deeplab, (1, 3, 640, 360), (1, 20, 640, 360))
 
-    deeplab = DeepLab(Xception(output_stride=8), num_classes=20)
+    deeplab = DeepLab(Xception(output_stride=16), num_classes=20)
     print('FPS (Xception, out_stride=16, size=(1280, 720))', fps(deeplab, (1, 3, 1280, 720)))
     print('FPS (Xception, out_stride=16, size=(640, 360))', fps(deeplab, (1, 3, 640, 360)))
 
