@@ -1,6 +1,5 @@
 # [WIP] DeepLab V3+ PyTorch
-
-This is a pytorch implementation of DeepLab V3+, optimized for semantic segmentation on driving-datasets like Berkeley's Deepdrive dataset.
+DeepLab V3+ is a state-of-the-art model for semantic segmentation. This repository contains a pytorch implementation of DeepLab V3+ finetuned for driving scene segmentation tasks (eg: BDD100k).
 
 ## TODO
 - Upload pretrained model and results on BDD100k
