@@ -12,10 +12,13 @@ from dataset import BDDSegmentationDataset
 
 if __name__ == '__main__':
 
-    if not os.path.exists('checkpoints'):
-        os.mkdir('checkpoints')
+    if not os.path.exists('train'):
+        os.mkdir('train')
+        os.mkdir('train/checkpoints')
 
-    def transforms(img, seg, size=(1280, 720), hflip=True, five_crop=True):
+    writer = SummaryWriter(log_dir='train/tensorboard')
+
+    def transforms(img, seg, size=(720, 1280), hflip=True, five_crop=True):
         ''' BDD transforms pipeline '''
         import random
         import torchvision.transforms.functional as tfunc
@@ -26,25 +29,24 @@ if __name__ == '__main__':
 
         if five_crop and random.random() < 0.5:
             i = random.randint(0, 4)
-            img = tfunc.five_crop(img, (img.size[0] // 2, img.size[1] // 2))[i]
-            seg = tfunc.five_crop(seg, (seg.size[0] // 2, seg.size[1] // 2))[i]
+            img = tfunc.five_crop(img, (size[0] // 2, size[1] // 2))[i]
+            seg = tfunc.five_crop(seg, (size[0] // 2, size[1] // 2))[i]
 
         img = tfunc.resize(img, size)
         seg = tfunc.resize(seg, size)
         seg = tfunc.to_grayscale(seg)
 
         img = tfunc.to_tensor(img)
-        seg = tfunc.to_tensor(seg).long()
+        seg = tfunc.to_tensor(seg).squeeze().long()
+        # TODO normalize
         return img, seg
 
     bdd_train = BDDSegmentationDataset('bdd100k', 'train', transforms=transforms)
-    train_loader = torch.utils.data.DataLoader(
-        bdd_train, batch_size=1, shuffle=True, num_workers=4, pin_memory=True)
+    train_loader = torch.utils.data.DataLoader(bdd_train, batch_size=1, shuffle=True, pin_memory=True)
 
     val_transforms = functools.partial(transforms, hflip=False, five_crop=False)
     bdd_val = BDDSegmentationDataset('bdd100k', 'val', transforms=val_transforms)
-    val_loader = torch.utils.data.DataLoader(
-        bdd_val, batch_size=1, num_workers=4)
+    val_loader = torch.utils.data.DataLoader(bdd_val, batch_size=1, pin_memory=True)
 
     num_classes = 19
     model = DeepLab(Xception(output_stride=16), num_classes=num_classes)
@@ -55,19 +57,17 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         criterion = criterion.cuda()
 
-    lr_init = 1e-4
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr_init, weight_decay=4e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=4e-5)
 
     max_epochs = 100000
-    lr_update = lambda epoch: lr_init * math.pow(1 - epoch / max_epochs, 0.9)
+    lr_update = lambda epoch: (1 - epoch / max_epochs) ** 0.9
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_update)
 
-    writer = SummaryWriter()
     # writer.add_graph(model, torch.rand(1, 3, 1280, 720), True)
 
     def mean_iou(y_pred, y, eps=1e-6):
         ''' Evaluates mean IoU between prediction and gt '''
-        _, num_classes = y_pred.shape
+        num_classes = y_pred.shape[1]
         y_pred = torch.argmax(y_pred, dim=1)
 
         miou = 0.0
@@ -87,12 +87,12 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
             y_pred = model(x)
-            loss = criterion(y_pred.view(-1, num_classes), y.view(-1))
+            loss = criterion(y_pred, y)
             loss.backward()
             optimizer.step()
 
             train_loss += loss.item()
-            train_mIoU += mean_iou(y_pred.view(-1, num_classes), y.view(-1))
+            train_mIoU += mean_iou(y_pred, y)
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -104,18 +104,18 @@ if __name__ == '__main__':
 
             with torch.no_grad():
                 y_pred = model(x)
-                loss = criterion(y_pred.view(-1, num_classes), y.view(-1))
+                loss = criterion(y_pred, y)
 
-                val_mIoU += mean_iou(y_pred.view(-1, num_classes), y.view(-1))
+                val_mIoU += mean_iou(y_pred, y)
                 val_loss += loss.item()
 
-        writer.add_scalar('train/loss', train_loss / len(train_loader.dataset), epoch)
-        writer.add_scalar('train/mIoU', train_mIoU / len(train_loader.dataset), epoch)
-        writer.add_scalar('val/loss', val_loss / len(val_loader.dataset), epoch)
-        writer.add_scalar('val/mIoU', val_mIoU / len(val_loader.dataset), epoch)
+        writer.add_scalar('Train/loss', train_loss / len(train_loader.dataset), epoch)
+        writer.add_scalar('Train/mIoU', train_mIoU / len(train_loader.dataset), epoch)
+        writer.add_scalar('Validation/loss', val_loss / len(val_loader.dataset), epoch)
+        writer.add_scalar('Validation/mIoU', val_mIoU / len(val_loader.dataset), epoch)
 
         state = {}
         state['epoch'] = epoch
         state['model'] = model.state_dict()
         state['optimizer'] = optimizer.state_dict()
-        torch.save(state, 'checkpoints/epoch-%d.pth' % epoch)
+        torch.save(state, 'train/checkpoints/epoch-%d.pth' % epoch)
