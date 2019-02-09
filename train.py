@@ -3,6 +3,8 @@
 import functools
 import math
 import os
+
+# import apex
 import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
@@ -12,11 +14,15 @@ from dataset import BDDSegmentationDataset
 
 if __name__ == '__main__':
 
+    # amp_handle = apex.amp.init(enabled=True)
+
     if not os.path.exists('train'):
         os.mkdir('train')
         os.mkdir('train/checkpoints')
 
-    writer = SummaryWriter(log_dir='train/tensorboard')
+    from datetime import datetime
+    time_now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    writer = SummaryWriter(log_dir=f'train/tensorboard/sess_{time_now}')
 
     def transforms(img, seg, size=(720, 1280), hflip=True, five_crop=True):
         ''' BDD transforms pipeline '''
@@ -53,17 +59,31 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         model = model.cuda()
 
-    criterion = nn.CrossEntropyLoss(reduction='mean', ignore_index=255)
+    def init_weights(model, mean=0.0, std=0.09):
+        ''' Initializes weights using normal distribution '''
+        for module in model.modules():
+            if isinstance(module, torch.nn.modules.Conv2d):
+                torch.nn.init.normal_(module.weight, mean=mean, std=std)
+            elif isinstance(module, torch.nn.modules.BatchNorm2d):
+                torch.nn.init.normal_(module.weight, mean=mean, std=std)
+
+    init_weights(model)
+
+    criterion = nn.CrossEntropyLoss(ignore_index=255)
     if torch.cuda.is_available():
         criterion = criterion.cuda()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=4e-5)
 
-    max_epochs = 100000
+    max_epochs = 500
     lr_update = lambda epoch: (1 - epoch / max_epochs) ** 0.9
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_update)
 
     # writer.add_graph(model, torch.rand(1, 3, 1280, 720), True)
+
+    # TODO For pure FP16 training
+    # model = model.half()
+    # criterion = criterion.half()
 
     def mean_iou(y_pred, y, eps=1e-6):
         ''' Evaluates mean IoU between prediction and gt '''
@@ -84,18 +104,24 @@ if __name__ == '__main__':
         for batch, (x, y) in enumerate(train_loader):
             if torch.cuda.is_available():
                 x, y = x.cuda(), y.cuda()
+                # TODO For pure FP16 training
+                # x = x.half()
 
             optimizer.zero_grad()
             y_pred = model(x)
+
             loss = criterion(y_pred, y)
             loss.backward()
+            # TODO for mixed precision training
+            # with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
+            #     scaled_loss.backward()
             optimizer.step()
 
             train_loss += loss.item()
             train_mIoU += mean_iou(y_pred, y)
 
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            # if torch.cuda.is_available():
+            #     torch.cuda.empty_cache()
 
         val_loss, val_mIoU = 0.0, 0.0
         for val_batch, (x, y) in enumerate(val_loader):
