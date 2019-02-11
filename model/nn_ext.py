@@ -12,24 +12,6 @@ class Identity(nn.Module):
         return x
 
 
-class Conv2dLayer(nn.Module):
-    ''' 2D convolution with batch norm and ReLU '''
-
-    def __init__(self, in_channels, out_channels, kernel_size,
-                 groups=1, stride=1, padding=0, dilation=1, bias=True,
-                 batchnorm_opts={'eps': 1e-3, 'momentum': 3e-4}):
-        super().__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
-                      groups=groups, stride=stride, padding=padding,
-                      dilation=dilation, bias=bias),
-            nn.BatchNorm2d(out_channels, **batchnorm_opts),
-            nn.ReLU(inplace=True))
-
-    def forward(self, x):
-        return self.conv(x)
-
-
 class SeparableConv2d(nn.Module):
     ''' Depthwise separable 2D convolution '''
 
@@ -48,6 +30,24 @@ class SeparableConv2d(nn.Module):
         x = self.depthwise_conv(x)
         x = self.pointwise_conv(x)
         return x
+
+
+class Conv2dLayer(nn.Module):
+    ''' 2D convolution with batch norm and ReLU '''
+
+    def __init__(self, in_channels, out_channels, kernel_size,
+                 groups=1, stride=1, padding=0, dilation=1, bias=True,
+                 batchnorm_opts={'eps': 1e-3, 'momentum': 3e-4}):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
+                      groups=groups, stride=stride, padding=padding,
+                      dilation=dilation, bias=bias),
+            nn.BatchNorm2d(out_channels, **batchnorm_opts),
+            nn.ReLU(inplace=True))
+
+    def forward(self, x):
+        return self.conv(x)
 
 
 class SeparableConv2dLayer(SeparableConv2d):

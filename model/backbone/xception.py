@@ -70,7 +70,7 @@ class Xception(BackboneModule):
     def __init__(self, output_stride=16):
 
         if output_stride not in {8, 16}:
-            raise NotImplementedError('Invalid output_stride; Supported values: {8, 16}')
+            raise ValueError('Invalid output_stride; Supported values: {8, 16}')
         low_out_channels = 128 if output_stride == 16 else 64
         super().__init__(output_stride=16, out_channels=2048, low_out_channels=low_out_channels)
 
@@ -85,7 +85,7 @@ class Xception(BackboneModule):
             opts['exit_flow_block_0'] = {'dilation': 2, 'atrous': True}
             opts['exit_flow_block_1'] = {'dilation': 4, 'padding': 4}
         else:
-            raise NotImplementedError('Invalid output_stride; Supported values: {8, 16}')
+            raise ValueError('Invalid output_stride; Supported values: {8, 16}')
 
         entry_flow = nn.Sequential(OrderedDict([
             ('block_0', nn.Sequential(
@@ -103,7 +103,7 @@ class Xception(BackboneModule):
         elif output_stride == 8:
             self.entry_flow = nn.ModuleList([entry_flow[0:1], entry_flow[1:4]])
         else:
-            raise NotImplementedError('Invalid output_stride; Supported values: {8, 16}')
+            raise ValueError('Invalid output_stride; Supported values: {8, 16}')
 
         self.middle_flow = nn.Sequential(OrderedDict([
             ('block_0', Xception.MiddleFlowBlock(**opts['middle_flow_block'])),

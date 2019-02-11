@@ -19,7 +19,7 @@ class DeepLab(nn.Module):
             super().__init__()
 
             if output_stride not in {8, 16}:
-                raise NotImplementedError('Invalid output_stride; Supported values: {8, 16}')
+                raise ValueError('Invalid output_stride; Supported values: {8, 16}')
             dilation_factor = 1 if output_stride == 16 else 2
 
             self.aspp = nn.ModuleList([
@@ -66,7 +66,7 @@ class DeepLab(nn.Module):
     def __init__(self, backbone, num_classes):
         super().__init__()
         if not isinstance(backbone, BackboneModule):
-            raise NotImplementedError('Backbone must extend model.backbone.BackboneModue')
+            raise RuntimeError('Backbone must extend model.backbone.BackboneModue')
 
         self.backbone = backbone
         self.aspp = DeepLab.ASPP(in_channels=backbone.out_channels,
@@ -87,6 +87,7 @@ if __name__ == '__main__':
     from model.backbone import Xception
 
     def test_out_shapes(model, in_shape, out_shape):
+        ''' Model shape test '''
         x = torch.rand(*in_shape)
         if next(model.parameters()).is_cuda:
             x = x.cuda()
@@ -96,6 +97,7 @@ if __name__ == '__main__':
             out_shape, y.shape)
 
     def fps(model, in_shape):
+        ''' Model FPS test '''
         x = torch.rand(*in_shape)
         if next(model.parameters()).is_cuda:
             x = x.cuda()
@@ -106,17 +108,25 @@ if __name__ == '__main__':
         return in_shape[0] * 100 / duration
 
     deeplab = DeepLab(Xception(output_stride=16), num_classes=20)
+    if torch.cuda.is_available():
+        deeplab.cuda()
     test_out_shapes(deeplab, (1, 3, 1280, 720), (1, 20, 1280, 720))
     test_out_shapes(deeplab, (1, 3, 640, 360), (1, 20, 640, 360))
 
     deeplab = DeepLab(Xception(output_stride=8), num_classes=20)
+    if torch.cuda.is_available():
+        deeplab.cuda()
     test_out_shapes(deeplab, (1, 3, 1280, 720), (1, 20, 1280, 720))
     test_out_shapes(deeplab, (1, 3, 640, 360), (1, 20, 640, 360))
 
     deeplab = DeepLab(Xception(output_stride=16), num_classes=20)
+    if torch.cuda.is_available():
+        deeplab.cuda()
     print('FPS (Xception, out_stride=16, size=(1280, 720))', fps(deeplab, (1, 3, 1280, 720)))
     print('FPS (Xception, out_stride=16, size=(640, 360))', fps(deeplab, (1, 3, 640, 360)))
 
     deeplab = DeepLab(Xception(output_stride=8), num_classes=20)
+    if torch.cuda.is_available():
+        deeplab.cuda()
     print('FPS (Xception, out_stride=8, size=(1280, 720))', fps(deeplab, (1, 3, 1280, 720)))
     print('FPS (Xception, out_stride=8, size=(640, 360))', fps(deeplab, (1, 3, 640, 360)))
