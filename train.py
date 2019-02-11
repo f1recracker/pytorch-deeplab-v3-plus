@@ -9,7 +9,8 @@ import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 
-from model import DeepLab, Xception
+from model import DeepLab
+from model.backbone import Xception
 from dataset import BDDSegmentationDataset
 
 if __name__ == '__main__':
@@ -24,7 +25,8 @@ if __name__ == '__main__':
     time_now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     writer = SummaryWriter(log_dir=f'train/tensorboard/sess_{time_now}')
 
-    def transforms(img, seg, size=(720, 1280), hflip=True, five_crop=True):
+    def transforms(img, seg, size=(360, 640), hflip=True, five_crop=True,
+                   tensor=True, normalize=True):
         ''' BDD transforms pipeline '''
         import random
         import torchvision.transforms.functional as tfunc
@@ -42,17 +44,25 @@ if __name__ == '__main__':
         seg = tfunc.resize(seg, size)
         seg = tfunc.to_grayscale(seg)
 
-        img = tfunc.to_tensor(img)
-        seg = tfunc.to_tensor(seg).squeeze().long()
-        # TODO normalize
+        if tensor:
+            img = tfunc.to_tensor(img)
+            seg = tfunc.to_tensor(seg).squeeze().long()
+
+        # if normalize:
+        #     img = tfunc.normalize(img,
+        #                           mean=(0.36350803, 0.36781886, 0.37393862),
+        #                           std=(0.26235075, 0.24659232, 0.24531917))
+
         return img, seg
 
     bdd_train = BDDSegmentationDataset('bdd100k', 'train', transforms=transforms)
-    train_loader = torch.utils.data.DataLoader(bdd_train, batch_size=1, shuffle=True, pin_memory=True)
+    train_loader = torch.utils.data.DataLoader(
+        bdd_train, batch_size=1, shuffle=True, num_workers=1, pin_memory=True)
 
     val_transforms = functools.partial(transforms, hflip=False, five_crop=False)
     bdd_val = BDDSegmentationDataset('bdd100k', 'val', transforms=val_transforms)
-    val_loader = torch.utils.data.DataLoader(bdd_val, batch_size=1, pin_memory=True)
+    val_loader = torch.utils.data.DataLoader(
+        bdd_val, batch_size=1, num_workers=1, pin_memory=True)
 
     num_classes = 19
     model = DeepLab(Xception(output_stride=16), num_classes=num_classes)
@@ -75,15 +85,11 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=4e-5)
 
-    max_epochs = 500
+    max_epochs = 50000
     lr_update = lambda epoch: (1 - epoch / max_epochs) ** 0.9
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_update)
 
     # writer.add_graph(model, torch.rand(1, 3, 1280, 720), True)
-
-    # TODO For pure FP16 training
-    # model = model.half()
-    # criterion = criterion.half()
 
     def mean_iou(y_pred, y, eps=1e-6):
         ''' Evaluates mean IoU between prediction and gt '''
@@ -104,8 +110,6 @@ if __name__ == '__main__':
         for batch, (x, y) in enumerate(train_loader):
             if torch.cuda.is_available():
                 x, y = x.cuda(), y.cuda()
-                # TODO For pure FP16 training
-                # x = x.half()
 
             optimizer.zero_grad()
             y_pred = model(x)

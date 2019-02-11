@@ -26,8 +26,7 @@ class BDDSegmentationDataset(Dataset):
         self.transforms = transforms
 
     def __len__(self):
-        # TODO fixme
-        return 1
+        return 1 # TODO fixme
         # return len(self.images)
 
     def __getitem__(self, key):
