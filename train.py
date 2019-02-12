@@ -38,17 +38,6 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         model = model.cuda()
 
-    def init_weights(model):
-        ''' Initializes weights using kaiming normal for conv and identity for batch norm '''
-        for module in model.modules():
-            if isinstance(module, torch.nn.modules.Conv2d):
-                torch.nn.init.kaiming_normal_(module.weight, nonlinearity='relu')
-            elif isinstance(module, torch.nn.modules.BatchNorm2d):
-                torch.nn.init.constant_(module.weight, 1.0)
-                torch.nn.init.constant_(module.bias, 0.0)
-
-    init_weights(model)
-
     criterion = nn.CrossEntropyLoss(ignore_index=255)
     if torch.cuda.is_available():
         criterion = criterion.cuda()

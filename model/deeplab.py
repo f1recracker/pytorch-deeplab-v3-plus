@@ -74,6 +74,8 @@ class DeepLab(nn.Module):
         self.decoder = DeepLab.Decoder(low_in_channels=backbone.low_out_channels,
                                        num_classes=num_classes)
 
+        self._init_weights()
+
     def forward(self, x_in):
         x, x_low = self.backbone(x_in)
         x = self.aspp(x)
@@ -81,6 +83,18 @@ class DeepLab(nn.Module):
         logits = nn_func.interpolate(logits, size=x_in.shape[2:4],
                                      mode='bilinear', align_corners=True)
         return logits
+    
+    def _init_weights(self):
+        ''' Initializes weights of the model.
+            - Conv2d parameters initialized using Kaiming normal
+            - Batchnorm affine parameters initialized as Identity
+        '''
+        for module in self.modules():
+            if isinstance(module, torch.nn.modules.Conv2d):
+                torch.nn.init.kaiming_normal_(module.weight, nonlinearity='relu')
+            elif isinstance(module, torch.nn.modules.BatchNorm2d):
+                torch.nn.init.constant_(module.weight, 1.0)
+                torch.nn.init.constant_(module.bias, 0.0)
 
 if __name__ == '__main__':
 
