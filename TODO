@@ -1,10 +1,13 @@
 - [training] setup FP16 training using apex
-- [training] review loss function
-- [training] setup truncated weight initializer (std_dev = 0.09)
+- [training] setup truncated normal weight initializer
+- [github] upload pretrained model
+- [github] upload results
 - [preprocess] image normalization needed?
 - [preprocess] random scale augmentation needed? (0.5 to 2)
 - [cleanup] restructure code, trainer class
 - [cleanup] tranformation pipeline using partial functions
+- [future] pretrain backends on ms-coco
 - [future] setup model for inference mode
+- [future] setup mobilenetv2 and resnet50 backends
 - [future] pretrain feature extractor on imagenet, ms-coco
 - [future] evaluate plateau learning rate
