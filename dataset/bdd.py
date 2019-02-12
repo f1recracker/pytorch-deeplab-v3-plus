@@ -1,4 +1,3 @@
-
 ''' Berkeley Deepdrive Segmentation Dataset loader '''
 
 import os
@@ -26,12 +25,11 @@ class BDDSegmentationDataset(Dataset):
         self.transforms = transforms
 
     def __len__(self):
-        return 1 # TODO fixme
-        # return len(self.images)
+        return len(self.images)
 
     def __getitem__(self, key):
         image = Image.open(self.images[key])
-        label = Image.open(self.labels[key]).convert(mode='L')
+        label = Image.open(self.labels[key]).convert(mode='1')
         if self.transforms:
             image, label = self.transforms(image, label)
         return image, label
