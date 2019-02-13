@@ -29,7 +29,7 @@ class BDDSegmentationDataset(Dataset):
 
     def __getitem__(self, key):
         image = Image.open(self.images[key])
-        label = Image.open(self.labels[key]).convert(mode='1')
+        label = Image.open(self.labels[key])
         if self.transforms:
             image, label = self.transforms(image, label)
         return image, label

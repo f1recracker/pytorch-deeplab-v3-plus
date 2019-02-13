@@ -2,13 +2,15 @@
 ''' Dataset transformation pipeline '''
 
 import random
+import torch
+import numpy as np
 import torchvision.transforms.functional as tfunc
 from PIL import Image
 
 def transforms(img, seg, size=(360, 640), hflip=True, five_crop=True,
                tensor=True, normalize=True):
     ''' BDD transforms pipeline '''
-
+    
     if hflip and random.random() < 0.5:
         img = tfunc.hflip(img)
         seg = tfunc.hflip(seg)
@@ -23,6 +25,6 @@ def transforms(img, seg, size=(360, 640), hflip=True, five_crop=True,
 
     if tensor:
         img = tfunc.to_tensor(img)
-        seg = tfunc.to_tensor(seg).squeeze().long()
+        seg = torch.LongTensor(np.array(seg))
 
     return img, seg
