@@ -52,11 +52,11 @@ if __name__ == '__main__':
 
     def mean_iou(y_pred, y, eps=1e-8, logits_dim=1):
         ''' Evaluates mean IoU between prediction and ground truth '''
-        num_classes = y_pred.shape[logits_dim]
         y_pred = torch.argmax(y_pred, dim=logits_dim)
+        classes = torch.unique(torch.cat((y_pred, y)))
 
         miou = 0.0
-        for i in range(num_classes):
+        for i in classes:
             intersect = torch.sum((y_pred == i) & (y == i)).float()
             union = torch.sum((y_pred == i) | (y == i)).float()
             miou += (intersect + eps) / (union + eps)
