@@ -50,22 +50,25 @@ if __name__ == '__main__':
 
     # writer.add_graph(model, torch.rand(1, 3, 1280, 720), True)
 
-    def mean_iou(y_pred, y, eps=1e-8, logits_dim=1):
+    def mean_iou(y_pred, y, logits_dim=1, ignore_index=255, eps=1e-8):
         ''' Evaluates mean IoU between prediction and ground truth '''
         y_pred = torch.argmax(y_pred, dim=logits_dim)
-        classes = torch.unique(torch.cat((y_pred, y)))
+        classes = set(torch.unique(torch.cat((y_pred, y))))
+        classes.discard(ignore_index)
+        mask = (y != ignore_index)
 
         miou = 0.0
         for i in classes:
-            intersect = torch.sum((y_pred == i) & (y == i)).float()
-            union = torch.sum((y_pred == i) | (y == i)).float()
+            intersect = torch.sum((y_pred[mask] == i) & (y[mask] == i)).float()
+            union = torch.sum((y_pred[mask] == i) | (y[mask] == i)).float()
             miou += (intersect + eps) / (union + eps)
-        return miou / num_classes
+        return (miou + eps) / (len(classes) + eps)
 
-    def pixel_accuracy(y_pred, y, logits_dim=1):
+    def pixel_accuracy(y_pred, y, logits_dim=1, ignore_index=255):
         ''' Evaluates pixel accuracy between prediction and ground truth '''
         y_pred = torch.argmax(y_pred, dim=logits_dim)
-        return torch.sum(y == y_pred).float() / y.nelement()
+        mask = (y != ignore_index)
+        return torch.sum(y[mask] == y_pred[mask]).float() / torch.sum(mask).float()
 
     for epoch in range(1, max_epochs + 1):
         scheduler.step()
@@ -90,9 +93,10 @@ if __name__ == '__main__':
             train_mIoU += mean_iou(y_pred, y)
             train_pix_acc += pixel_accuracy(y_pred, y)
 
-            # if torch.cuda.is_available():
-            #     torch.cuda.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
+        # Run validation loop
         val_pix_acc = 0.0
         val_loss, val_mIoU = 0.0, 0.0
         for val_batch, (x, y) in enumerate(val_loader):
