@@ -17,8 +17,9 @@ def transforms(img, seg, size=(360, 640), hflip=True, five_crop=True,
 
     if five_crop and random.random() < 0.5:
         i = random.randint(0, 4)
-        img = tfunc.five_crop(img, (size[0] * 0.8, size[1] * 0.8))[i]
-        seg = tfunc.five_crop(seg, (size[0] * 0.8, size[1] * 0.8))[i]
+        resize = lambda x, scale: tuple(int(i * scale) for i in x)[::-1]
+        img = tfunc.five_crop(img, resize(img.size, 0.8))[i]
+        seg = tfunc.five_crop(seg, resize(seg.size, 0.8))[i]
 
     if rotate and random.random() < 0.5:
         angle = random.randrange(-30, 30)
