@@ -2,19 +2,20 @@
 
 import functools
 import os
+import pickle
 
-# import apex
+import apex
 import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 
 from model import DeepLab
 from model.backbone import Xception
-from dataset import BDDSegmentationDataset, transforms
+from dataset import BDDSegmentationDataset, transforms, bdd_palette
 
 if __name__ == '__main__':
 
-    # amp_handle = apex.amp.init(enabled=True)
+    amp_handle = apex.amp.init(enabled=True)
 
     if not os.path.exists('train'):
         os.mkdir('train')
@@ -24,27 +25,48 @@ if __name__ == '__main__':
     time_now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     writer = SummaryWriter(log_dir=f'train/tensorboard/sess_{time_now}')
 
+    batch_size = 8
     bdd_train = BDDSegmentationDataset('bdd100k', 'train', transforms=transforms)
     train_loader = torch.utils.data.DataLoader(
-        bdd_train, batch_size=4, shuffle=True, num_workers=1, pin_memory=True)
+        bdd_train, batch_size=batch_size, shuffle=True, num_workers=1, pin_memory=True)
 
     val_transforms = functools.partial(transforms, hflip=False, five_crop=False)
     bdd_val = BDDSegmentationDataset('bdd100k', 'val', transforms=val_transforms)
     val_loader = torch.utils.data.DataLoader(
-        bdd_val, batch_size=4, num_workers=1, pin_memory=True)
+        bdd_val, batch_size=batch_size, num_workers=1, pin_memory=True)
 
     num_classes = 19
     model = DeepLab(Xception(output_stride=16), num_classes=num_classes)
     if torch.cuda.is_available():
         model = model.cuda()
 
-    criterion = nn.CrossEntropyLoss(ignore_index=255)
+    def median_frequency_balance(dataset, num_classes=19, ignore_index=255, _eps=1e-5):
+        '''
+        For more details refer to Section 6.3.2 in
+        https://arxiv.org/pdf/1411.4734.pdf
+        '''
+        frequency = torch.zeros(num_classes) + _eps
+        for _, seg in dataset:
+            for cid in torch.unique(seg):
+                if cid == ignore_index:
+                    continue
+                frequency[cid] += torch.sum(seg == cid)
+        frequency /= torch.sum(frequency)
+        return torch.median(frequency) / frequency
+
+    if not os.path.exists('train/class_weights.pkl'):
+        class_weights = median_frequency_balance(bdd_train)
+        pickle.dump(class_weights, open('train/class_weights.pkl', 'wb'))
+
+    class_weights = pickle.load(open('train/class_weights.pkl', 'rb'))
+
+    criterion = nn.CrossEntropyLoss(ignore_index=255, weight=class_weights)
     if torch.cuda.is_available():
         criterion = criterion.cuda()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-6, weight_decay=4e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=4e-5)
 
-    max_epochs = 250
+    max_epochs = 500
     lr_update = lambda epoch: (1 - epoch / max_epochs) ** 0.9
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_update)
 
@@ -72,6 +94,7 @@ if __name__ == '__main__':
 
     for epoch in range(1, max_epochs + 1):
         scheduler.step()
+        writer.add_scalar('lr', scheduler.get_lr()[0], epoch)
 
         train_pix_acc = 0.0
         train_loss, train_mIoU = 0.0, 0.0
@@ -83,10 +106,10 @@ if __name__ == '__main__':
             y_pred = model(x)
 
             loss = criterion(y_pred, y)
-            loss.backward()
+            # loss.backward()
             # TODO for mixed precision training
-            # with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
-            #     scaled_loss.backward()
+            with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
             optimizer.step()
 
             train_loss += loss.item()
