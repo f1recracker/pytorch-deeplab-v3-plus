@@ -31,7 +31,7 @@ if __name__ == '__main__':
     train_loader = torch.utils.data.DataLoader(
         bdd_train, batch_size=batch_size, shuffle=True, num_workers=1, pin_memory=True)
 
-    val_transforms = functools.partial(transforms, hflip=False, five_crop=False)
+    val_transforms = functools.partial(transforms, augment=False)
     bdd_val = BDDSegmentationDataset('bdd100k', 'val', transforms=val_transforms)
     val_loader = torch.utils.data.DataLoader(
         bdd_val, batch_size=batch_size, num_workers=1, pin_memory=True)
