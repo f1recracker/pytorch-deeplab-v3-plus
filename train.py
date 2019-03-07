@@ -1,4 +1,4 @@
-# pylint: disable=W0221,C0414,C0103
+# pylint: disable=invalid-name,redefined-outer-name
 
 import functools
 import os
@@ -11,11 +11,12 @@ from tensorboardX import SummaryWriter
 
 from model import DeepLab
 from model.backbone import Xception
-from dataset import BDDSegmentationDataset, transforms, bdd_palette
+from dataset import BDDSegmentationDataset, transforms, median_frequency_balance
+from metrics import pixel_accuracy, mean_iou
 
 if __name__ == '__main__':
 
-    amp_handle = apex.amp.init(enabled=True)
+    amp_handle = apex.amp.init(enabled=False)
 
     if not os.path.exists('train'):
         os.mkdir('train')
@@ -40,20 +41,6 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         model = model.cuda()
 
-    def median_frequency_balance(dataset, num_classes=19, ignore_index=255, _eps=1e-5):
-        '''
-        For more details refer to Section 6.3.2 in
-        https://arxiv.org/pdf/1411.4734.pdf
-        '''
-        frequency = torch.zeros(num_classes) + _eps
-        for _, seg in dataset:
-            for cid in torch.unique(seg):
-                if cid == ignore_index:
-                    continue
-                frequency[cid] += torch.sum(seg == cid)
-        frequency /= torch.sum(frequency)
-        return torch.median(frequency) / frequency
-
     if not os.path.exists('train/class_weights.pkl'):
         class_weights = median_frequency_balance(bdd_train)
         pickle.dump(class_weights, open('train/class_weights.pkl', 'wb'))
@@ -72,26 +59,6 @@ if __name__ == '__main__':
 
     # writer.add_graph(model, torch.rand(1, 3, 1280, 720), True)
 
-    def mean_iou(y_pred, y, logits_dim=1, ignore_index=255, eps=1e-8):
-        ''' Evaluates mean IoU between prediction and ground truth '''
-        y_pred = torch.argmax(y_pred, dim=logits_dim)
-        classes = set(torch.unique(torch.cat((y_pred, y))))
-        classes.discard(ignore_index)
-        mask = (y != ignore_index)
-
-        miou = 0.0
-        for i in classes:
-            intersect = torch.sum((y_pred[mask] == i) & (y[mask] == i)).float()
-            union = torch.sum((y_pred[mask] == i) | (y[mask] == i)).float()
-            miou += (intersect + eps) / (union + eps)
-        return (miou + eps) / (len(classes) + eps)
-
-    def pixel_accuracy(y_pred, y, logits_dim=1, ignore_index=255):
-        ''' Evaluates pixel accuracy between prediction and ground truth '''
-        y_pred = torch.argmax(y_pred, dim=logits_dim)
-        mask = (y != ignore_index)
-        return torch.sum(y[mask] == y_pred[mask]).float() / torch.sum(mask).float()
-
     for epoch in range(1, max_epochs + 1):
         scheduler.step()
         writer.add_scalar('lr', scheduler.get_lr()[0], epoch)
@@ -106,8 +73,6 @@ if __name__ == '__main__':
             y_pred = model(x)
 
             loss = criterion(y_pred, y)
-            # loss.backward()
-            # TODO for mixed precision training
             with amp_handle.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
             optimizer.step()
