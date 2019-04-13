@@ -18,15 +18,12 @@ if __name__ == '__main__':
 
     amp_handle = apex.amp.init(enabled=False)
 
-    if not os.path.exists('train'):
-        os.mkdir('train')
-        os.mkdir('train/checkpoints')
-
     from datetime import datetime
-    time_now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    writer = SummaryWriter(log_dir=f'train/tensorboard/sess_{time_now}')
+    session_path = f'train/sess_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+    os.makedirs(session_path, exist_ok=True)
+    os.makedirs(f'{session_path}/checkpoints', exist_ok=True)
 
-    batch_size = 8
+    batch_size = 4
     bdd_train = BDDSegmentationDataset('bdd100k', 'train', transforms=transforms)
     train_loader = torch.utils.data.DataLoader(
         bdd_train, batch_size=batch_size, shuffle=True, num_workers=1, pin_memory=True)
@@ -43,6 +40,7 @@ if __name__ == '__main__':
 
     if not os.path.exists('train/class_weights.pkl'):
         class_weights = median_frequency_balance(bdd_train)
+        class_weights = torch.clamp(class_weights, 0.1, 10.0)
         pickle.dump(class_weights, open('train/class_weights.pkl', 'wb'))
 
     class_weights = pickle.load(open('train/class_weights.pkl', 'rb'))
@@ -53,10 +51,11 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=4e-5)
 
-    max_epochs = 500
+    max_epochs = 1000
     lr_update = lambda epoch: (1 - epoch / max_epochs) ** 0.9
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_update)
 
+    writer = SummaryWriter(log_dir=f'{session_path}/tensorboard')
     # writer.add_graph(model, torch.rand(1, 3, 1280, 720), True)
 
     for epoch in range(1, max_epochs + 1):
@@ -78,8 +77,8 @@ if __name__ == '__main__':
             optimizer.step()
 
             train_loss += loss.item()
-            train_mIoU += mean_iou(y_pred, y)
-            train_pix_acc += pixel_accuracy(y_pred, y)
+            train_mIoU += mean_iou(torch.argmax(y_pred, dim=1), y, num_classes)
+            train_pix_acc += pixel_accuracy(torch.argmax(y_pred, dim=1), y, num_classes)
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -96,8 +95,8 @@ if __name__ == '__main__':
                 loss = criterion(y_pred, y)
 
             val_loss += loss.item()
-            val_mIoU += mean_iou(y_pred, y)
-            val_pix_acc += pixel_accuracy(y_pred, y)
+            val_mIoU += mean_iou(torch.argmax(y_pred, dim=1), y, num_classes)
+            val_pix_acc += pixel_accuracy(torch.argmax(y_pred, dim=1), y, num_classes)
 
         writer.add_scalar('Train/loss', train_loss / len(train_loader), epoch)
         writer.add_scalar('Train/mIoU', train_mIoU / len(train_loader), epoch)
@@ -111,4 +110,4 @@ if __name__ == '__main__':
         state['epoch'] = epoch
         state['model'] = model.state_dict()
         state['optimizer'] = optimizer.state_dict()
-        torch.save(state, 'train/checkpoints/epoch-%d.pth' % epoch)
+        torch.save(state, f'{session_path}/checkpoints/epoch-%d.pth' % epoch)

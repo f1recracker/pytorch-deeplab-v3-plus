@@ -1,5 +1,4 @@
-# pylint: disable=W0221,C0414,C0103
-
+# pylint: disable=arguments-differ, too-many-arguments
 ''' DeepLab V3+ '''
 
 import torch
@@ -83,7 +82,7 @@ class DeepLab(nn.Module):
         logits = nn_func.interpolate(logits, size=x_in.shape[2:4],
                                      mode='bilinear', align_corners=True)
         return logits
-    
+
     def _init_weights(self):
         ''' Initializes weights of the model.
             - Conv2d parameters initialized using Kaiming normal

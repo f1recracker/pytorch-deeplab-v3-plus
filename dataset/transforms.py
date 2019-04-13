@@ -11,8 +11,8 @@ def transforms(img, seg, size=(360, 640), augment=True, hflip_prob=0.5,
                five_crop_prob=0.5, five_crop_scale=0.6,
                rotate_prob=0.5, max_rotate=30.0,
                tensor_output=True,
-               normalize_mean=torch.Tensor([0.0, 0.0, 0.0]),
-               normalize_std=torch.Tensor([1.0, 1.0, 1.0]),
+               normalize_mean=torch.Tensor([0.3518, 0.3932, 0.4011]),
+               normalize_std=torch.Tensor([0.2363, 0.2494, 0.2611]),
                _ignore_index=255):
     ''' BDD transforms pipeline '''
 

@@ -1,4 +1,4 @@
-# pylint: disable=W0221,C0414
+# pylint: disable=arguments-differ, too-many-arguments
 
 ''' Extensions to standard torch.nn primitives '''
 
